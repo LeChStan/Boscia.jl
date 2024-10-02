@@ -1,139 +1,88 @@
 using Boscia
 using FrankWolfe
-using Test
+using Bonobo
 using Random
 using SCIP
-# using Statistics
 using LinearAlgebra
 using Distributions
+using DataFrames, CSV
+using HiGHS
 import MathOptInterface
 const MOI = MathOptInterface
+include("example_utilities.jl")
 
-include("cube_blmo.jl")
 
-n = 20
-diffi = Random.rand(Bool, n) * 0.6 .+ 0.3
-
-@testset "Approximate planted point - Integer" begin
-
+function approx_planted_point_integer(o, n, seed)
+    Random.seed!(seed)
+    diffi = Random.rand(Bool, n) * 0.6 .+ 0.3
     function f(x)
         return 0.5 * sum((x[i] - diffi[i])^2 for i in eachindex(x))
     end
     function grad!(storage, x)
         @. storage = x - diffi
     end
+    # using SCIP
 
-    @testset "Using SCIP" begin
-        o = SCIP.Optimizer()
-        MOI.set(o, MOI.Silent(), true)
-        MOI.empty!(o)
-        x = MOI.add_variables(o, n)
-        for xi in x
-            MOI.add_constraint(o, xi, MOI.GreaterThan(0.0))
-            MOI.add_constraint(o, xi, MOI.LessThan(1.0))
-            MOI.add_constraint(o, xi, MOI.ZeroOne()) # or MOI.Integer()
-        end
-        lmo = FrankWolfe.MathOptLMO(o)
-
-        x, _, result = Boscia.solve(f, grad!, lmo, verbose=true)
-
-        @test x == round.(diffi)
-        @test isapprox(f(x), f(result[:raw_solution]), atol=1e-6, rtol=1e-3)
+    MOI.set(o, MOI.Silent(), true)
+    MOI.empty!(o)
+    x = MOI.add_variables(o, n)
+    for xi in x
+        MOI.add_constraint(o, xi, MOI.GreaterThan(0.0))
+        MOI.add_constraint(o, xi, MOI.LessThan(1.0))
+        MOI.add_constraint(o, xi, MOI.ZeroOne()) # or MOI.Integer()
     end
-
-    @testset "Using Cube LMO" begin
-        int_vars = collect(1:n)
-
-        bounds = Boscia.IntegerBounds()
-        for i in 1:n
-            push!(bounds, (i, 0.0), :greaterthan)
-            push!(bounds, (i, 1.0), :lessthan)
-        end
-        blmo = CubeBLMO(n, int_vars, bounds)
-
-        x, _, result = Boscia.solve(f, grad!, blmo, verbose=true)
-
-        @test x == round.(diffi)
-        @test isapprox(f(x), f(result[:raw_solution]), atol=1e-6, rtol=1e-3)
-    end
-
-    @testset "Using Cube Simple LMO" begin
-        int_vars = collect(1:n)
-        lbs = zeros(n)
-        ubs = ones(n)
-
-        sblmo = Boscia.CubeSimpleBLMO(lbs, ubs, int_vars)
-
-        x, _, result =
-            Boscia.solve(f, grad!, sblmo, lbs[int_vars], ubs[int_vars], int_vars, n, verbose=true)
-
-        @test x == round.(diffi)
-        @test isapprox(f(x), f(result[:raw_solution]), atol=1e-6, rtol=1e-3)
-    end
+    lmo = Boscia.MathOptBLMO(o)
+    return lmo, f, grad!
 end
 
-
-@testset "Approximate planted point - Mixed" begin
-
+function approx_planted_point_mixed(o, n, seed)
+    Random.seed!(seed)
+    diffi = Random.rand(Bool, n) * 0.6 .+ 0.3
     function f(x)
         return 0.5 * sum((x[i] - diffi[i])^2 for i in eachindex(x))
     end
     function grad!(storage, x)
         @. storage = x - diffi
     end
-
     int_vars = unique!(rand(collect(1:n), Int(floor(n / 2))))
-
-    @testset "Using SCIP" begin
-        o = SCIP.Optimizer()
-        MOI.set(o, MOI.Silent(), true)
-        MOI.empty!(o)
-        x = MOI.add_variables(o, n)
-        for xi in x
-            MOI.add_constraint(o, xi, MOI.GreaterThan(0.0))
-            MOI.add_constraint(o, xi, MOI.LessThan(1.0))
-            if xi.value in int_vars
-                MOI.add_constraint(o, xi, MOI.ZeroOne()) # or MOI.Integer()
-            end
+    MOI.set(o, MOI.Silent(), true)
+    MOI.empty!(o)
+    x = MOI.add_variables(o, n)
+    for xi in x
+        MOI.add_constraint(o, xi, MOI.GreaterThan(0.0))
+        MOI.add_constraint(o, xi, MOI.LessThan(1.0))
+        if xi.value in int_vars
+            MOI.add_constraint(o, xi, MOI.ZeroOne()) # or MOI.Integer()
         end
-        lmo = FrankWolfe.MathOptLMO(o)
-
-        x, _, result = Boscia.solve(f, grad!, lmo, verbose=true)
-
-        sol = diffi
-        sol[int_vars] = round.(sol[int_vars])
-        @test sum(isapprox.(x, sol, atol=1e-6, rtol=1e-2)) == n
-        @test isapprox(f(x), f(result[:raw_solution]), atol=1e-6, rtol=1e-3)
     end
+    lmo = Boscia.MathOptBLMO(o)
 
-    @testset "Using Cube LMO" begin
-        bounds = Boscia.IntegerBounds()
-        for i in 1:n
-            push!(bounds, (i, 0.0), :greaterthan)
-            push!(bounds, (i, 1.0), :lessthan)
-        end
-        blmo = CubeBLMO(n, int_vars, bounds)
+    return lmo, f, grad!
+end 
 
-        x, _, result = Boscia.solve(f, grad!, blmo, verbose=true)
 
-        sol = diffi
-        sol[int_vars] = round.(sol[int_vars])
-        @test sum(isapprox.(x, sol, atol=1e-6, rtol=1e-2)) == n
-        @test isapprox(f(x), f(result[:raw_solution]), atol=1e-6, rtol=1e-3)
+function approx_planted_boscia(mode, dimension, seed, alternative, decision_function, iterations_until_stable, μ, set, time_limit = 1800)
+
+    o = SCIP.Optimizer()
+    #o = HiGHS.Optimizer()
+    if set == "mixed"
+        lmo, f, grad! = approx_planted_point_mixed(o, n, seed)
+    else 
+        lmo, f, grad! = approx_planted_point_integer(o, n, seed)
     end
+    branching_strategy, settings = build_branching_strategy(lmo, mode, alternative, decision_function, iterations_until_stable, μ)
+    # println(o)
+    println("precompile")
+    Boscia.solve(f, grad!, lmo, verbose=false, time_limit=10)
+   # print(lmo.o)
+    println("actual run")
 
-    @testset "Using Cube Simple LMO" begin
-        lbs = zeros(n)
-        ubs = ones(n)
+    x, _, result = Boscia.solve(f, grad!, lmo, verbose=true, time_limit=time_limit, branching_strategy = branching_strategy)
 
-        sblmo = Boscia.CubeSimpleBLMO(lbs, ubs, int_vars)
-
-        x, _, result =
-            Boscia.solve(f, grad!, sblmo, lbs[int_vars], ubs[int_vars], int_vars, n, verbose=true)
-
-        sol = diffi
-        sol[int_vars] = round.(sol[int_vars])
-        @test sum(isapprox.(x, sol, atol=1e-6, rtol=1e-2)) == n
-        @test isapprox(f(x), f(result[:raw_solution]), atol=1e-6, rtol=1e-3)
-    end
+    ### Define Parameters needed for documenting the results ###
+    example_name = "approx_planted_" * set 
+    file_name = "approx_planted_" * set * "_results"
+    # Save result
+    save_results(result, settings, μ, example_name, seed, dimension, file_name,false)
+    return result
 end
