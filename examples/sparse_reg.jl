@@ -1,16 +1,15 @@
-using Statistics
 using Boscia
 using FrankWolfe
+using Bonobo
 using Random
-using LinearAlgebra
 using SCIP
-import Bonobo
+using LinearAlgebra
+using Distributions
+using DataFrames, CSV
+using HiGHS
 import MathOptInterface
 const MOI = MathOptInterface
-using Dates
-using Printf
-using Test
-
+include("example_utilities.jl")
 # Sparse regression
 
 # Constant parameters for the sparse regression
@@ -27,18 +26,32 @@ using Test
 # z_i = 0 => β_i = 0
 
 
-n0 = 20;
-p = 5 * n0;
-k = ceil(n0 / 5);
-const lambda_0 = rand(Float64);
-const lambda_2 = 10.0 * rand(Float64);
-const A = rand(Float64, n0, p)
-const y = rand(Float64, n0)
-const M = 2 * var(A)
+function build_function(seed, n)
+    Random.seed!(seed)
+    p = 5 * n;
+    k = ceil(n / 5);
+    lambda_0 = rand(Float64);
+    lambda_2 = 10.0 * rand(Float64);
+    A = rand(Float64, n, p)
+    y = rand(Float64, n)
+    M = 2 * var(A)
+    # @show A, y, M, lambda_0, lambda_2
 
-# "Sparse Regression" 
-@testset "Sparse regression" begin
-    o = SCIP.Optimizer()
+    function f(x)
+        xv = @view(x[1:p])
+        return norm(y - A * xv)^2 + lambda_0 * sum(x[p+1:2p]) + lambda_2 * norm(xv)^2
+    end
+
+    function grad!(storage, x)
+        storage[1:p] .= 2 * (transpose(A) * A * x[1:p] - transpose(A) * y + lambda_2 * x[1:p])
+        storage[p+1:2p] .= lambda_0
+        return storage
+    end
+
+    return f, grad!, p, k, M, A, y, lambda_0, lambda_2
+end
+
+function build_optimizer(o, p, k, M)
     MOI.set(o, MOI.Silent(), true)
     MOI.empty!(o)
     x = MOI.add_variables(o, 2p)
@@ -64,21 +77,33 @@ const M = 2 * var(A)
         MOI.ScalarAffineFunction(MOI.ScalarAffineTerm.(ones(p), x[p+1:2p]), 0.0),
         MOI.LessThan(k),
     )
-    lmo = FrankWolfe.MathOptLMO(o)
-
-    function f(x)
-        xv = @view(x[1:p])
-        return norm(y - A * xv)^2 + lambda_0 * sum(x[p+1:2p]) + lambda_2 * norm(xv)^2
-    end
-
-    function grad!(storage, x)
-        storage[1:p] .= 2 * (transpose(A) * A * x[1:p] - transpose(A) * y + lambda_2 * x[1:p])
-        storage[p+1:2p] .= lambda_0
-        return storage
-    end
-
-    x, _, result = Boscia.solve(f, grad!, lmo, verbose=true, fw_epsilon=1e-3, print_iter=10)
-
-    # @show result // too large to be output
-    @test f(x) <= f(result[:raw_solution]) + 1e-6
+    lmo = Boscia.MathOptBLMO(o)
+    return lmo, x
 end
+
+
+function sparse_reg_boscia(mode, dimension, seed, alternative, decision_function, iterations_until_stable, μ,  time_limit = 1800)
+
+
+
+    f, grad!, p, k, M, A, y, lambda_0, lambda_2 = build_function(seed, dimension)
+    o = SCIP.Optimizer()
+    lmo, _ = build_optimizer(o, p, k, M)
+    branching_strategy, settings = build_branching_strategy(lmo, mode, alternative, decision_function, iterations_until_stable, μ)
+    # println(o)
+    println("precompile")
+    Boscia.solve(f, grad!, lmo, verbose=false, time_limit=10)
+   # print(lmo.o)
+    println("actual run")
+
+    x, _, result = Boscia.solve(f, grad!, lmo, verbose=true, time_limit=time_limit, branching_strategy = branching_strategy)
+
+    ### Define Parameters needed for documenting the results ###
+    example_name = "sparse_regression"
+    file_name = "sparse_reg_results"
+    # Save result
+    save_results(result, settings, μ, example_name, seed, dimension, file_name,false)
+    return result
+end
+
+sparse_reg_boscia("pseudocost", 15, 1, "most_infeasible", "product", 1, 1e-6,  180)

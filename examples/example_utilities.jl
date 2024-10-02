@@ -1,11 +1,62 @@
 using DataFrames, CSV
 
 
+
+function build_branching_strategy(
+    bounded_lmo, 
+    mode, 
+    alternative, 
+    decision_function, 
+    iterations_until_stable,
+    μ
+)  
+    if decision_function == "weighted_sum"
+        μ = Int(μ)
+    end 
+    if mode == "hierarchy"
+        
+        branching_strategy = Boscia.HIERARCHY_PSEUDO_COST(
+            iterations_until_stable,
+            alternative,
+            bounded_lmo,
+            μ,
+            decision_function
+        )
+        settings = "hierarchy_" * string(iterations_until_stable) * "_" * alternative * "_" * decision_function       
+    elseif mode == "pseudocost"
+        branching_strategy = Boscia.PSEUDO_COST(
+            iterations_until_stable,
+            alternative,
+            bounded_lmo,
+            μ,
+            decision_function
+        ) 
+        settings = "pseudocost_" * string(iterations_until_stable) * "_" * alternative * "_" * decision_function   
+    elseif mode == "most_infeasible"
+        branching_strategy = Bonobo.MOST_INFEASIBLE()
+        settings = mode
+    elseif mode =="largest_gradient"
+        branching_strategy = Boscia.LargestGradient()
+        settings = mode
+    elseif mode == "largest_most_infeasible_gradient"
+        branching_strategy = Boscia.LargestMostInfeasibleGradient()
+        settings = mode
+    elseif mode == "strong_branching"
+        blmo = Boscia.MathOptBLMO(HiGHS.Optimizer())
+        branching_strategy = Boscia.PartialStrongBranching(10, 1e-3, blmo)
+        MOI.set(branching_strategy.bounded_lmo.o, MOI.Silent(), true)
+        settings = mode
+    end
+    return branching_strategy, settings
+end
+
 function save_results(
     result::Dict{Symbol, Any},
     settings::String,
+    μ,
     example_name::String,
     seed,
+    dimension,
     file_name::String,
     over_write::Bool
     )
@@ -30,19 +81,26 @@ function save_results(
     l22 = Dict(string(key) => result[key] for key in l2)
     l33 = Dict(string(key) => result[key] for key in l3)
     l11 = DataFrame(l11)
-    l11[:, :example_name] .= example_name
-    l11[:, :seed] .= seed
+
     l11[:, :settings] .= settings
+    l11[:, :example_name] .= example_name
+    l11[:, :dimension] .= dimension
+    l11[:, :seed] .= seed
+    l11[:, :weight] .= μ
 
     l22 = DataFrame(l22)
     l22[:, :settings] .= settings
     l22[:, :example_name] .= example_name
     l22[:, :seed] .= seed
+    l22[:, :dimension] .= dimension
+    l22[:, :weight] .= μ
 
     l33 = DataFrame(l33)
     l33[:, :settings] .= settings
     l33[:, :example_name] .= example_name
     l33[:, :seed] .= seed
+    l33[:, :dimension] .= dimension
+    l33[:, :weight] .= μ
 
     file_name1 = "./results/" * file_name * "_summary.csv"
 
