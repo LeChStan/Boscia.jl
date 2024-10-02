@@ -66,9 +66,9 @@ function approx_planted_boscia(mode, dimension, seed, alternative, decision_func
     o = SCIP.Optimizer()
     #o = HiGHS.Optimizer()
     if set == "mixed"
-        lmo, f, grad! = approx_planted_point_mixed(o, n, seed)
+        lmo, f, grad! = approx_planted_point_mixed(o, dimension, seed)
     else 
-        lmo, f, grad! = approx_planted_point_integer(o, n, seed)
+        lmo, f, grad! = approx_planted_point_integer(o, dimension, seed)
     end
     branching_strategy, settings = build_branching_strategy(lmo, mode, alternative, decision_function, iterations_until_stable, μ)
     # println(o)
@@ -86,3 +86,5 @@ function approx_planted_boscia(mode, dimension, seed, alternative, decision_func
     save_results(result, settings, μ, example_name, seed, dimension, file_name,false)
     return result
 end
+
+#approx_planted_boscia("strong_branching", 5, 1, "na", "na", 1, 1e-6, "integer", 180)
