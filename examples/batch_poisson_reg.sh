@@ -34,7 +34,7 @@
 #SBATCH --mail-type=FAIL
 
 # You may not place any commands before the last SBATCH directive
-julia --project run_poisson_reg_setup.jl $1 $2 $3 $4 $5 $6 $7&> sparse_reg_$1_$SLURM_JOB_ID.txt
+julia --project run_poisson_reg_setup.jl $1 $2 $3 $4 $5 $6 $7&> poisson_reg_$1_$SLURM_JOB_ID.txt
 
 # Finish the script
 exit 0
