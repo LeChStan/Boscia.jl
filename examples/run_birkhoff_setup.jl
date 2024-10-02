@@ -1,0 +1,24 @@
+include("birkhoff.jl")
+
+################# Read ARGS passed #######################
+mode = parse(String, ARGS[1])
+dimension = parse(Int64, ARGS[2])
+seed = parse(Int64, ARGS[3])
+alternative = parse(String, ARGS[4])
+decision_function = parse(String, ARGS[5])
+iterations_until_stable =  parse(Int64, ARGS[6])
+μ = parse(Float64, ARGS[7])
+k = parse(Int64, ARGS[8])
+time_limit = 1800
+@show seed, dimension
+
+################# Run example #######################
+try 
+    birkhoff_boscia(mode, dimension, k, seed, alternative, decision_function, iterations_until_stable, μ, time_limit)
+catch e 
+    println(e)
+    file = "birkhoff_" * str(seed) * "_" * str(dimension) * "_" * mode 
+    open(file * ".txt","a") do io
+        println(io, e)
+    end
+end
