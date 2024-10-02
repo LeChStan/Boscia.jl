@@ -9,10 +9,7 @@ function build_branching_strategy(
     decision_function, 
     iterations_until_stable,
     μ
-)  
-    if decision_function == "weighted_sum"
-        μ = Int(μ)
-    end 
+)   
     if mode == "hierarchy"
         
         branching_strategy = Boscia.HIERARCHY_PSEUDO_COST(

@@ -84,8 +84,6 @@ end
 
 function sparse_reg_boscia(mode, dimension, seed, alternative, decision_function, iterations_until_stable, μ,  time_limit = 1800)
 
-
-
     f, grad!, p, k, M, A, y, lambda_0, lambda_2 = build_function(seed, dimension)
     o = SCIP.Optimizer()
     lmo, _ = build_optimizer(o, p, k, M)
@@ -106,4 +104,4 @@ function sparse_reg_boscia(mode, dimension, seed, alternative, decision_function
     return result
 end
 
-sparse_reg_boscia("pseudocost", 15, 1, "most_infeasible", "product", 1, 1e-6,  180)
+# sparse_reg_boscia("hierarchy", 20, 2, "most_infeasible", "product", 4, 1e-6,  600)

@@ -16,7 +16,7 @@ try
     sparse_reg_shot(seed, dimension)
 catch e 
     println(e)
-    file = "shot_sparse_reg_" * str(seed) * "_" * str(dimension)    
+    file = "sparse_reg_" * str(seed) * "_" * str(dimension) * "_" * mode 
     open(file * ".txt","a") do io
         println(io, e)
     end
