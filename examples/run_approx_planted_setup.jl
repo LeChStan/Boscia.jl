@@ -1,4 +1,4 @@
-include("sparse_reg.jl")
+include("approx_planted_point.jl")
 
 ################# Read ARGS passed #######################
 mode = parse(String, ARGS[1])

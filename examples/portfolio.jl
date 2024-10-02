@@ -76,8 +76,8 @@ end
 
 function portfolio_boscia(mode, dimension, seed, alternative, decision_function, iterations_until_stable, μ, set, time_limit = 1800)
     f, grad!, n, ri, Ωi, Ai, Mi, ai, bi = build_function(seed, dimension)
-    #o = SCIP.Optimizer()
-    o = HiGHS.Optimizer()
+    o = SCIP.Optimizer()
+    #o = HiGHS.Optimizer()
     lmo, _ = build_optimizer(o, set, n, ai, bi)
     branching_strategy, settings = build_branching_strategy(lmo, mode, alternative, decision_function, iterations_until_stable, μ)
     # println(o)
