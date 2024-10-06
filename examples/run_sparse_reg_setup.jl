@@ -8,9 +8,9 @@ alternative = parse(String, ARGS[4])
 decision_function = parse(String, ARGS[5])
 iterations_until_stable =  parse(Int64, ARGS[6])
 μ = parse(Float64, ARGS[7])
-
-@show seed, dimension
 time_limit = 1800
+@show seed, dimension
+
 ################# Run example #######################
 try 
     sparse_reg_boscia(mode, dimension, seed, alternative, decision_function, iterations_until_stable, μ,  time_limit)
